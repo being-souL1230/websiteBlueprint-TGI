@@ -1,30 +1,7 @@
 import os
 from flask import Flask, render_template, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-
-app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "thegoalindia-secret-key")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///candidates.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
-
-class Candidate(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    age = db.Column(db.Integer, nullable=False)
-    email = db.Column(db.String(100), nullable=False)
-    phone = db.Column(db.String(20), nullable=False)
-    qualification = db.Column(db.String(100), nullable=False)
-    experience = db.Column(db.String(50), nullable=True)
-    company_applied = db.Column(db.String(100), nullable=False)
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
-
-    def __repr__(self):
-        return f'<Candidate {self.name}>'
-
-with app.app_context():
-    db.create_all()
+from datetime import datetime
+from database import get_database
 
 COMPANIES = [
     {"id": 1, "name": "Tata Motors", "salary": "₹25,000 - ₹45,000/month", "about": "Leading automobile manufacturer in India with global presence.", "services": "Food, Transportation, Accommodation", "requirements": "ITI/Diploma in Mechanical/Electrical", "latest": True},
@@ -81,6 +58,9 @@ COMPANIES = [
     {"id": 52, "name": "Ambuja Cement", "salary": "₹21,000 - ₹43,000/month", "about": "Major cement manufacturer in India.", "services": "Food, Transportation, Housing", "requirements": "ITI/Diploma in relevant field", "latest": False},
 ]
 
+app = Flask(__name__)
+app.secret_key = os.environ.get("SESSION_SECRET", "thegoalindia-secret-key")
+
 def get_sorted_companies():
     latest = sorted([c for c in COMPANIES if c.get('latest')], key=lambda x: x['name'])
     others = sorted([c for c in COMPANIES if not c.get('latest')], key=lambda x: x['name'])
@@ -112,20 +92,24 @@ def apply():
         if not data.get(field):
             return jsonify({"success": False, "message": f"Missing required field: {field}"}), 400
     try:
-        candidate = Candidate(
-            name=data['name'],
-            age=int(data['age']),
-            email=data['email'],
-            phone=data['phone'],
-            qualification=data['qualification'],
-            experience=data.get('experience', ''),
-            company_applied=data['company_applied']
-        )
-        db.session.add(candidate)
-        db.session.commit()
+        db = get_database()
+        candidates_collection = db.candidates
+        
+        candidate_data = {
+            'name': data['name'],
+            'age': int(data['age']),
+            'email': data['email'],
+            'phone': data['phone'],
+            'qualification': data['qualification'],
+            'experience': data.get('experience', ''),
+            'company_applied': data['company_applied'],
+            'created_at': datetime.now()
+        }
+        
+        result = candidates_collection.insert_one(candidate_data)
+        
         return jsonify({"success": True, "message": "Application submitted successfully!"})
     except Exception as e:
-        db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 400
 
 if __name__ == '__main__':
