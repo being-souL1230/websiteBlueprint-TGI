@@ -17,7 +17,7 @@ if not MONGODB_URI:
     raise ValueError("MONGODB_URI environment variable not set")
 
 client = MongoClient(MONGODB_URI)
-db = client.get_default_database()
+db = client["the-goal-india"]
 
 def get_database():
     return db
